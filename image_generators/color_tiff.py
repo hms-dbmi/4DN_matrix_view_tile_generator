@@ -1,17 +1,17 @@
-import math
 import matplotlib.cm as mp_cm
 import numpy as np
 import cv2
+from normalizers.simple_norm import *
 
 __author__ = 'Hendrik Strobelt'
 
 
 class ColorImageRenderer:
-    def __init__(self, max_value, tile_size):
-        self.max_value = max_value
-        self.log_norm_max = math.log(max_value + 1)
+    def __init__(self, max_value, tile_size, normalizer, color_mapper):
+        self.max_value = float(max_value)
         self.tile_size = tile_size
-        self.colormap = mp_cm.get_cmap('Spectral')  # hot
+        self.colormap = color_mapper
+        self.normalizer = normalizer
         pass
 
     def norm(self, x, max_v):
@@ -23,9 +23,14 @@ class ColorImageRenderer:
             cur.execute('SELECT * FROM CacheDB WHERE PosX>=? AND PosX<? '
                         'AND PosY>=? AND PosY<?'
                         , (i * self.tile_size, (i + 1) * self.tile_size, j * self.tile_size, (j + 1) * self.tile_size))
-            for row in cur.fetchall():
-                a = self.norm(row[2], self.log_norm_max)
-                img[int(row[0]) - offset_x, int(row[1]) - offset_y] = map(lambda b: b * 255, self.colormap(a)[0:3])
+            # for row in cur.fetchall():
+            #     a = self.normalizer.norm(row[2])
+            #     img[int(row[0]) - offset_x, int(row[1]) - offset_y] = self.colormap.get_rgb_255(a)
+            all_pos = cur.fetchall()
+            all_colors = self.colormap.get_bgr_255_array([self.normalizer.norm(row[2]) for row in all_pos])
+
+            for index, row in enumerate(all_pos):
+                img[int(row[0]) - offset_x, int(row[1]) - offset_y] = all_colors[index]
 
             cv2.imwrite(output_file, img)
             print i, j  # , ' <<<<< ', len(cur.fetchall())
